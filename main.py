@@ -1,17 +1,32 @@
 import requests
+import psycopg2
+from datetime import datetime
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
+from dotenv import load_dotenv
+import os
 
+# CONEXAO COM O BANCO
+load_dotenv()
+
+def get_connection():
+    return psycopg2.connect(
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT")
+    )
 resposta = requests.get('https://ufu.br/')
 print(resposta)
 
 if(resposta.status_code == 200):
     soup = BeautifulSoup(resposta.content, 'html.parser')
-    print(soup.prettify())
-    print(soup.title.contents)
+    # print(soup.prettify())
+    # print(soup.title.contents)
     barra_esquerda = soup.find('ul', class_ = 'sidebar-nav nav-level-0')
-    print(barra_esquerda)
+    # print(barra_esquerda)
     linhas_barra_esquerda = barra_esquerda.find_all('li', class_ = 'nav-item')
 
     iniciar_captura = False
@@ -24,9 +39,9 @@ if(resposta.status_code == 200):
         if iniciar_captura:
             linhas_desejadas_barra_esquerda.append(linha.text.strip())
             links_barra_esquerda.append(linha.a.get('href'))
-    print(linhas_desejadas_barra_esquerda)
-    print(links_barra_esquerda)
-    print(linha.text)
+    # print(linhas_desejadas_barra_esquerda)
+    # print(links_barra_esquerda)
+    # print(linha.text)
     
     for link in links_barra_esquerda:
         print("https://ufu.br"+link)
@@ -59,3 +74,18 @@ if(resposta.status_code == 200):
         sheet.cell(i+2,2).value = "https://ufu.br"+link
     
     wb.save("UFU_menu_nav.xlsx")
+
+conn = get_connection()
+cursor = conn.cursor()
+
+for menu, link in zip(linhas_desejadas_barra_esquerda, links_barra_esquerda):
+    full_link = "https://ufu.br" + link
+    now = datetime.now()
+    cursor.execute("""
+        INSERT INTO menu_nav (menu_nav, link, created_at)
+        VALUES (%s, %s, %s)
+    """, (menu, full_link, now))
+
+conn.commit()
+cursor.close()
+conn.close()
